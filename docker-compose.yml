@@ -1,0 +1,61 @@
+version: "3.7"
+
+# Docker Networks
+networks:
+  cbtt:
+    driver: bridge
+
+services:
+
+  # PostgreSQL Service
+  cbtt_postgres:
+    image: postgres:12
+    container_name: cbtt_postgres
+    restart: unless-stopped
+    ports:
+      - "5439:5432"
+    volumes:
+      - ./docker/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=cbtt
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    networks:
+      - cbtt
+
+  # PHP Service
+  cbtt_php:
+    build:
+      context: .
+      dockerfile: ./docker/php/Dockerfile
+    container_name: cbtt_php
+    restart: unless-stopped
+    command: 'php artisan serve --host 0.0.0.0'
+    ports:
+      - "8009:8000"
+    volumes:
+      - ./app:/var/www/html/app
+    depends_on:
+      - cbtt_postgres
+    environment:
+      - DB_HOST=cbtt_postgres
+      - RMQ_HOST=cbtt_rabbitmq
+      - RMQ_PORT=5672
+    networks:
+      - cbtt
+
+  # RabbitMQ Service
+  cbtt_rabbitmq:
+    image: rabbitmq:3.8.19-management-alpine
+    container_name: cbtt_rabbitmq
+    restart: unless-stopped
+    ports:
+      - "15679:15672"
+    volumes:
+      - ./docker/rabbitmq:/var/lib/rabbitmq
+      - ./docker/rabbitmq/log:/var/log/rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    networks:
+      - cbtt
